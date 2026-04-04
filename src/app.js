@@ -1,5 +1,11 @@
+require("dotenv").config(); 
 const express = require("express");
 const pool = require("./config/db")
+const validarUsuarios = require("./validacao/usuarios")
+const validarPost = require("./validacao/posts")
+
+const jwt = require("jsonwebtoken");  
+const auth = require("./auth/authLogin"); 
 
 const app = express();
 app.use(express.json())
@@ -18,11 +24,36 @@ function formatarPost(post) {
 }
 
 app.get("/", (req, res) => {
-    res.send("<h1>Rede Social!<h1>")
+    res.send("<h1>Rede Social!</h1>")
+});
+
+// LOGIN
+app.post("/login", async (req, res) => {
+    const { email, senha } = req.body;
+
+    const usuario = await pool.query(
+        `SELECT * FROM usuarios WHERE email=$1`,
+        [email]
+    );
+
+    if (usuario.rows.length === 0) {
+        return res.status(400).json({ mensagem: "Usuário não encontrado" });
+    }
+
+    if (senha !== usuario.rows[0].senha) {
+        return res.status(400).json({ mensagem: "Senha inválida" });
+    }
+
+    const token = jwt.sign(
+        { id: usuario.rows[0].id },
+        process.env.JWT_SECRET,
+        { expiresIn: "1h" }
+    );
+
+    res.json({ token });
 });
 
 // GET USUARIOS
-
 app.get("/usuarios", async(req, res) => {
     try {
         const resultado = await pool.query(`
@@ -37,7 +68,6 @@ app.get("/usuarios", async(req, res) => {
 })
 
 // GET DOS POSTS
-
 app.get("/posts", async (req, res) => {
     try {
     const resultado = await pool.query(`
@@ -62,11 +92,30 @@ app.get("/posts", async (req, res) => {
     }
 });
 
-// Criando Rota POST
-
-app.post("/posts", async (req, res) => {
+//  Rota POST (usuarios)
+app.post("/usuarios", validarUsuarios, async (req, res) => {
     try {
-        const { titulo, conteudo, usuario_id } = req.body;
+        const {nome, email, senha} = req.body;
+        const resultado = await pool.query(`
+            INSERT INTO usuarios (nome, email, senha)
+            VALUES ($1, $2, $3)
+            RETURNING*`,
+            [nome, email, senha]);
+            res.status(201).json({
+                mensagem: "Usuario criado com sucesso",
+                usuario: resultado.rows[0],
+            });
+       } catch (erro) {
+        res.status(500).json({
+            erro: "Erro ao criar usuario"
+        });
+       }
+    });
+
+// PROTEGIDA COM AUTH
+app.post("/posts", auth, validarPost, async (req, res) => {
+    try {
+        const { titulo, conteudo } = req.body;
 
         const resultado = await pool.query(
             `
@@ -74,7 +123,7 @@ app.post("/posts", async (req, res) => {
             VALUES ($1, $2, $3)
             RETURNING *
             `,
-            [titulo, conteudo, usuario_id]
+            [titulo, conteudo, req.usuario.id] 
         );       
 
         res.status(201).json({
@@ -89,9 +138,8 @@ app.post("/posts", async (req, res) => {
     }
 });
 
-// Criando rota PUT - Atualização
-
-app.put("/posts/:id", async (req, res) => {
+// PUT
+app.put("/posts/:id", validarPost, async (req, res) => {
     try {
     const {id} = req.params;
     const {titulo, conteudo} = req.body;
@@ -119,8 +167,7 @@ app.put("/posts/:id", async (req, res) => {
 }
 });
 
-// ROTA DELETE
-
+// DELETE
 app.delete("/posts/:id", async (req, res) => {
     try{
     const {id} = req.params;
