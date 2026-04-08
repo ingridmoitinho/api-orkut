@@ -21,8 +21,7 @@ const usuarioSchema = joi.object({
 
 function validarUsuarios(req, res, next) {
     const {error} = usuarioSchema.validate(req.body, {abortEarly:false});
-    if(error) {
-        console.log(error)
+    if(error) {        
         return res.status(400).json ({
             erro: error.details.map( e => e.message)       
         });

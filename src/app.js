@@ -7,9 +7,11 @@ const validarPost = require("./validacao/posts")
 const jwt = require("jsonwebtoken");  
 const auth = require("./auth/authLogin"); 
 const bcrypt = require("bcrypt");
+const cors = require("cors");
 
 const app = express();
 app.use(express.json())
+app.use(cors());
 
 function formatarData(data){
     return new Date(data).toLocaleString("pt-BR", {
@@ -111,8 +113,7 @@ app.post("/usuarios", validarUsuarios, async (req, res) => {
                 mensagem: "Usuario criado com sucesso",
                 usuario: resultado.rows[0],
             });
-       } catch (erro) {
-         console.log(erro);
+       } catch (erro) {         
         res.status(500).json({
             erro: "Erro ao criar usuario"
         });
@@ -178,8 +179,7 @@ app.put("/posts/:id", auth, validarPost, async (req, res) => {
             post: formatarPost(resultado.rows[0]),
         });
 
-    } catch (erro) {
-        console.log(erro);
+    } catch (erro) {       
         res.status(500).json({
             erro: "Erro ao atualizar post",
         });
